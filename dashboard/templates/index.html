@@ -217,21 +217,21 @@ orbit.enabled = false;
 // ─────────────────────────────────────────────────────────────────────────────
 // LIGHTING
 // ─────────────────────────────────────────────────────────────────────────────
-scene.add(new THREE.AmbientLight(0x8899bb, 0.5));
+scene.add(new THREE.AmbientLight(0xddeeff, 0.7));
 
-const sun = new THREE.DirectionalLight(0xffffff, 0.9);
-sun.position.set(10, 20, 5);
+const sun = new THREE.DirectionalLight(0xffffff, 1.1);
+sun.position.set(15, 30, 10);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.camera.near = 0.5; sun.shadow.camera.far = 80;
-sun.shadow.camera.left = -30; sun.shadow.camera.right = 30;
-sun.shadow.camera.top  =  30; sun.shadow.camera.bottom = -30;
+sun.shadow.camera.near = 0.5; sun.shadow.camera.far = 100;
+sun.shadow.camera.left = -40; sun.shadow.camera.right = 40;
+sun.shadow.camera.top  =  40; sun.shadow.camera.bottom = -40;
 scene.add(sun);
 
 // Accent strips (ceiling lights)
 function addStrip(x, z) {
-  const l = new THREE.PointLight(0xaadeff, 0.6, 15);
-  l.position.set(x, 3.5, z);
+  const l = new THREE.PointLight(0xaadeff, 0.7, 18);
+  l.position.set(x, 3.4, z);
   scene.add(l);
 }
 
@@ -333,6 +333,7 @@ scene.add(robotGroup);
 let sceneBuilt=false, ROWS=0, COLS=0;
 let pathLine = null;
 let goalMesh  = null;
+let ceilMesh  = null;
 let pathVisible = true;
 
 function buildScene(grid, goal) {
@@ -346,12 +347,17 @@ function buildScene(grid, goal) {
   floor.receiveShadow = true;
   scene.add(floor);
 
-  // Ceiling (dim)
-  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(COLS,ROWS),
+  // Add 3D Grid for reference
+  const gridHelper = new THREE.GridHelper(Math.max(COLS, ROWS), Math.max(COLS, ROWS), 0x444455, 0x222233);
+  gridHelper.position.set(COLS/2, 0.01, ROWS/2);
+  scene.add(gridHelper);
+
+  // Ceiling (stored in global 'ceilMesh')
+  ceilMesh = new THREE.Mesh(new THREE.PlaneGeometry(COLS,ROWS),
     new THREE.MeshStandardMaterial({color:0x303040, side:THREE.BackSide}));
-  ceil.rotation.x = Math.PI/2;
-  ceil.position.set(COLS/2, 3.5, ROWS/2);
-  scene.add(ceil);
+  ceilMesh.rotation.x = Math.PI/2;
+  ceilMesh.position.set(COLS/2, 3.5, ROWS/2);
+  scene.add(ceilMesh);
 
   // Ceiling strip lights
   for(let r=5;r<ROWS;r+=8) addStrip(COLS/2, r);
@@ -440,10 +446,17 @@ function setCam(mode) {
   ['follow','orbit','top','fps'].forEach(m => {
     document.getElementById('btn-'+m).classList.toggle('active', m===mode);
   });
-  orbit.enabled = (mode==='orbit');
-  if(mode==='top') {
-    camera3.position.set(COLS/2||7, 22, ROWS/2||15);
-    camera3.lookAt(COLS/2||7, 0, ROWS/2||15);
+  
+  orbit.enabled = (mode === 'orbit');
+  
+  if (mode === 'top') {
+    camera3.position.set(curX, 35, curZ);
+    camera3.lookAt(curX, 0, curZ);
+  } else if (mode === 'orbit') {
+    // Initial cinematic orbit position relative to robot
+    camera3.position.set(curX - 8, 8, curZ - 8);
+    orbit.target.set(curX, 0.5, curZ);
+    orbit.update();
   }
 }
 
@@ -509,26 +522,31 @@ function animate() {
   // Goal ring rotation
   if (goalMesh) goalMesh.rotation.z += dt * 0.8;
 
-  // Camera updates
+  // Camera and visibility updates
+  if (ceilMesh) ceilMesh.visible = (camMode !== 'top');
+
   if(camMode==='follow') {
-    // Cinematic 3rd person follow
-    const dist  = 6, height = 4;
+    // 3rd person follow - tight distance to stay inside corridors
+    const dist  = 2.8, height = 1.6;
     const tCamX = curX - dist * Math.sin(curTheta);
     const tCamZ = curZ - dist * Math.cos(curTheta);
-    camera3.position.lerp(new THREE.Vector3(tCamX, height, tCamZ), 0.07);
-    const lookAt = new THREE.Vector3(curX, 0.5, curZ);
-    camera3.lookAt(lookAt);
+    camera3.position.lerp(new THREE.Vector3(tCamX, height, tCamZ), 0.15);
+    camera3.lookAt(curX, 0.7, curZ);
   } else if(camMode==='fps') {
     camera3.position.set(
-      curX + 0.5*Math.sin(curTheta), 0.65,
-      curZ + 0.5*Math.cos(curTheta)
+      curX + 0.4*Math.sin(curTheta), 0.65,
+      curZ + 0.4*Math.cos(curTheta)
     );
     camera3.lookAt(
-      curX + 2*Math.sin(curTheta), 0.55,
-      curZ + 2*Math.cos(curTheta)
+      curX + 1.5*Math.sin(curTheta), 0.6,
+      curZ + 1.5*Math.cos(curTheta)
     );
   } else if(camMode==='orbit') {
+    orbit.target.set(curX, 0.5, curZ);
     orbit.update();
+  } else if(camMode==='top') {
+    camera3.position.set(curX, 35, curZ);
+    camera3.lookAt(curX, 0, curZ);
   }
 
   renderer.render(scene, camera3);
@@ -610,7 +628,7 @@ sse.onmessage = (e) => {
 
   document.getElementById('st-x').textContent    = targetX.toFixed(3)+' m';
   document.getElementById('st-y').textContent    = targetZ.toFixed(3)+' m';
-  document.getElementById('st-h').textContent    = ((d.smooth_theta*180/Math.PI)%360).toFixed(1)+'°';
+  document.getElementById('st-h').textContent    = ((d.smooth_theta*180/Math.PI)%360).toFixed(1) + "\u00B0";
   document.getElementById('st-nav').textContent  = d.nav_status||'--';
   document.getElementById('st-s').textContent    = `${d.step_idx||0}/${d.total_steps||'--'}`;
   document.getElementById('st-t').textContent    = (d.elapsed||0).toFixed(1)+' s';
