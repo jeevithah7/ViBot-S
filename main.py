@@ -6,7 +6,7 @@ from script.path_planning.path_planning1 import demo_path
 
 def main():
     # Correct path (IMPORTANT)
-    DATA_PATH = os.path.join("Simulation", "data", "kitti")
+    DATA_PATH = os.path.join("data", "kitti")
 
     # Check if dataset exists
     if not os.path.exists(DATA_PATH):

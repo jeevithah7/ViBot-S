@@ -15,4 +15,4 @@ def run_feature_detection(data_path):
     cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-    run_feature_detection("Simulation\data\kitti")
+    run_feature_detection("data\kitti")
