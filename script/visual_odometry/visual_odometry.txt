@@ -1,0 +1,21 @@
+Visual Odometry Module - ViBot-S Simulation
+
+Description:
+This module estimates camera motion using matched feature points between frames.
+
+Input:
+- Matched feature points from consecutive frames
+
+Processing:
+- Compute essential matrix using matched points
+- Recover rotation (R) and translation (t)
+- Accumulate motion over time
+
+Output:
+- Robot trajectory (X-Z coordinates)
+
+Purpose:
+This module enables the system to estimate its movement using only visual input.
+
+Result:
+The system generates a trajectory showing the estimated path of the robot.

@@ -1,0 +1,20 @@
+Feature Matching Module - ViBot-S Simulation
+
+This module implements feature detection and matching using ORB (Oriented FAST and Rotated BRIEF) in OpenCV.
+
+Input:
+- Sequential grayscale images from KITTI dataset (image_2)
+
+Processing:
+- Detect keypoints using ORB
+- Extract descriptors
+- Match features between consecutive frames using BFMatcher (Hamming distance)
+
+Output:
+- Visual representation of matched features between frames
+
+Purpose:
+This module simulates how a robot tracks visual features in real time to estimate motion.
+
+Note:
+This is part of a larger pipeline including visual odometry, mapping, and navigation.

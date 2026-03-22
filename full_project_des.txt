@@ -1,0 +1,28 @@
+ViBot-S Simulation Project
+
+Description:
+ViBot-S is a vision-based indoor navigation robot simulation that demonstrates how a robot can navigate using only camera input.
+
+Modules:
+1. Feature Detection (ORB)
+2. Feature Matching
+3. Visual Odometry
+4. Mapping (SLAM-lite)
+5. Path Planning (A*)
+
+Dataset:
+- KITTI Visual Odometry Dataset (Sequence 00)
+
+Tools Used:
+- Python
+- OpenCV
+- NumPy
+- Matplotlib
+
+Pipeline:
+Input Images → Feature Detection → Feature Matching → Visual Odometry → Mapping → Path Planning
+
+Outcome:
+The system demonstrates a complete pipeline for vision-based navigation, including motion estimation, environment mapping, and path planning.
+
+This project serves as a foundation for building real-world autonomous robots.
