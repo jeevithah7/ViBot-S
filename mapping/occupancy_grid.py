@@ -97,34 +97,21 @@ class OccupancyGrid:
 
     # ------------------------------------------------------------------ factory
     @classmethod
-    def build_sample_map(cls, rows: int = 20, cols: int = 20) -> "OccupancyGrid":
-        """
-        Create a ready-made simulated indoor map with walls and obstacles.
-
-        Layout (20 × 20 grid, 0.2 m cells → 4 × 4 m room):
-          • Entire interior is FREE
-          • Perimeter is OCCUPIED (room walls)
-          • Three interior obstacle blocks
-        """
-        og = cls(rows=rows, cols=cols, cell_size=0.2)
-
-        # Mark everything free first
+    def build_sample_map(cls, rows: int = 30, cols: int = 14) -> "OccupancyGrid":
+        og = cls(rows=rows, cols=cols, cell_size=0.15)
         og.mark_free_area(0, rows, 0, cols)
 
-        # Perimeter walls
-        og.mark_obstacle(0,    1,    0, cols)    # top wall
-        og.mark_obstacle(rows-1, rows, 0, cols)  # bottom wall
-        og.mark_obstacle(0, rows, 0,    1)        # left wall
-        og.mark_obstacle(0, rows, cols-1, cols)   # right wall
+        # Hallway perimeter walls
+        og.mark_obstacle(0, rows, 0, 1)
+        og.mark_obstacle(0, rows, cols-1, cols)
+        og.mark_obstacle(0, 1, 0, cols)
+        og.mark_obstacle(rows-1, rows, 0, cols)
 
-        # Interior obstacles (furniture / pillars)
-        og.mark_obstacle(4,  7,  4,  7)    # obstacle A
-        og.mark_obstacle(4,  7, 13, 16)    # obstacle B
-        og.mark_obstacle(12, 16, 8, 12)    # obstacle C
+        # Obstacles (Chairs in the hallway)
+        og.mark_obstacle(12, 14, 5, 9)
+        og.mark_obstacle(20, 22, 2, 6)
 
-        # Robot starts at top-left interior corner
-        og.set_robot_position(1, 1)
-
+        og.set_robot_position(2, 7)
         return og
 
     # ------------------------------------------------------------------ display

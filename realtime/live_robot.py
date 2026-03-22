@@ -30,12 +30,13 @@ if ROOT not in sys.path:
 from mapping.occupancy_grid import OccupancyGrid
 from navigation.astar_planner import AStarPlanner
 from control.pid_controller import PIDController, simple_pendulum_process
+from simulation_3d.environment import Environment3D
 
 # ─── CONFIGURATION ────────────────────────────────────────────────────────────
-MAP_ROWS     = 20
-MAP_COLS     = 20
-START        = (1,  1)
-GOAL         = (18, 18)
+MAP_ROWS     = 30
+MAP_COLS     = 14
+START        = (2,  7)
+GOAL         = (27, 7)
 HISTORY_LEN  = 120      # samples to keep in rolling buffer
 STEP_PERIOD  = 0.45     # seconds between robot path steps
 PID_PERIOD   = 0.02     # PID loop period (50 Hz)
@@ -66,6 +67,7 @@ class LiveRobot:
 
         # Build map + path
         self._og = OccupancyGrid.build_sample_map(rows=MAP_ROWS, cols=MAP_COLS)
+        self.env3d = Environment3D(self._og.grid)
         planner  = AStarPlanner(self._og, diagonal=True)
         self._path = planner.plan(START, GOAL)
         if not self._path:
@@ -85,6 +87,8 @@ class LiveRobot:
         self._loops     = 0
         self._running   = False
         self._t_start   = 0.0
+        self._step_t0   = 0.0
+        self._last_th   = 0.0
 
         # History deques (fixed-length rolling windows)
         self._tilt_hist  : deque = deque(maxlen=HISTORY_LEN)
@@ -159,16 +163,21 @@ class LiveRobot:
                 if idx < len(self._path):
                     row, col = self._path[idx]
                     self._og.set_robot_position(row, col)
-                    self._pos_log.append((row, col))
+                    if not self._pos_log or self._pos_log[-1] != (row, col):
+                        self._pos_log.append((row, col))
+                    
+                    if idx > 0 and idx < len(self._path):
+                        r_prev, c_prev = self._path[idx-1]
+                        self._last_th = math.atan2(row - r_prev, col - c_prev)
+
                     self._step_idx += 1
                 else:
-                    # Loop path for continuous demo
                     self._step_idx = 0
                     self._loops   += 1
-                    # Reset tilt for next loop
                     self._tilt = self._initial_tilt
                     self._pid.reset()
 
+            self._step_t0 = time.monotonic()
             elapsed_loop = time.monotonic() - t0
             time.sleep(max(0.0, STEP_PERIOD - elapsed_loop))
 
@@ -211,8 +220,31 @@ class LiveRobot:
         nav_active = step_idx < len(self._path)
         nav_status = "Navigation Running" if nav_active else "Goal Reached"
 
+        # Interpolate continuous 3D state
+        frac = min(1.0, (time.monotonic() - self._step_t0) / STEP_PERIOD)
+        smooth_x, smooth_y, smooth_theta = 1.0, 1.0, 0.0
+        
+        idx = max(0, min(step_idx - 1, len(self._path) - 1))
+        if idx < len(self._path) - 1:
+            r1, c1 = self._path[idx]
+            r2, c2 = self._path[idx+1]
+            smooth_x = c1 + (c2 - c1) * frac
+            smooth_y = r1 + (r2 - r1) * frac
+            
+            target_th = math.atan2(r2 - r1, c2 - c1)
+            # Shortest angle diff
+            th_diff = (target_th - self._last_th + math.pi) % (2*math.pi) - math.pi
+            smooth_theta = self._last_th + th_diff * frac
+        elif len(self._path) > 0:
+            r1, c1 = self._path[-1]
+            smooth_x, smooth_y = float(c1), float(r1)
+            smooth_theta = self._last_th
+
         return {
             "robot_pos"     : rp,
+            "smooth_x"      : round(smooth_x, 3),
+            "smooth_y"      : round(smooth_y, 3),
+            "smooth_theta"  : round(smooth_theta, 3),
             "path"          : [list(p) for p in self._path],
             "pos_log"       : [list(p) for p in pos_log],
             "grid"          : self._grid_state,
@@ -232,6 +264,7 @@ class LiveRobot:
             "mode"          : "simulation",
             "start"         : list(START),
             "goal"          : list(GOAL),
+            "env_walls"     : self.env3d.walls
         }
 
 

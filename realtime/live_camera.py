@@ -32,6 +32,8 @@ if ROOT not in sys.path:
 from vision.camera_capture import SimulatedCamera
 from vision.feature_detection_orb import ORBDetector
 from vision.feature_matching import FeatureMatcher
+from camera_view.robot_camera import RobotCamera
+from realtime.live_robot import get_robot
 
 # ─── MODE SWITCH ──────────────────────────────────────────────────────────────
 MODE = "simulation"   # "simulation"  |  "hardware"
@@ -77,6 +79,9 @@ class LiveCamera:
         self._matcher = FeatureMatcher(ratio_threshold=0.8)
         self._prev_kp = None
         self._prev_des = None
+        
+        # New 3D camera
+        self._cam3d = RobotCamera(width=width, height=height)
 
         # Shared state for last keypoints (for API)
         self._last_kp_count = 0
@@ -215,7 +220,18 @@ class LiveCamera:
         t   = time.time() - self._t0
         fps = self._frame_idx / max(t, 0.001)
 
-        raw = self._make_corridor_frame(t)
+        # Fetch smooth pose from live robot
+        try:
+            robot = get_robot()
+            state = robot.read_state()
+            rx = state.get("smooth_x", 1.0)
+            ry = state.get("smooth_y", 1.0)
+            rth = state.get("smooth_theta", 0.0)
+            walls = robot.env3d.walls
+            raw = self._cam3d.render(rx, ry, rth, walls)
+        except Exception as e:
+            print("Fallback camera due to error:", e)
+            raw = np.zeros((self._h, self._w, 3), dtype=np.uint8)
 
         # ORB detection on this frame
         kp, des = self._detector.detect_and_compute(raw)

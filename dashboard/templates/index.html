@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ViBot-S | RViz</title>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;500&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet"/>
+  <style>
+    /* ── RViz engineering palette ─────────────────────────────────────── */
+    :root {
+      --bg:     #2c2c2c;
+      --panel:  #3a3a3a;
+      --border: #545454;
+      --header: #444;
+      --text:   #cecece;
+      --muted:  #868686;
+      --accent: #7ec8e3;
+      --green:  #72bf72;
+      --red:    #e06060;
+      --yellow: #d4c040;
+      --hdr-h:  26px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin:0; padding:0; }
+    html, body {
+      width:100%; height:100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Roboto', sans-serif;
+      font-size: 12px;
+      overflow: hidden;
+    }
+
+    /* ── Toolbar ─────────────────────────────────────────────────────── */
+    #toolbar {
+      height: 30px;
+      background: #1e1e1e;
+      border-bottom: 1px solid #111;
+      display: flex; align-items: center;
+      padding: 0 14px; gap: 24px;
+      flex-shrink: 0; z-index: 10; position: relative;
+    }
+    .tb-logo { color: var(--accent); font-weight:700; font-size:13px; letter-spacing:1.5px; font-family:'Roboto Mono',monospace; }
+    .tb-sep  { width:1px; height:14px; background:#555; }
+    .tb-item { color: var(--muted); font-size:11px; font-family:'Roboto Mono',monospace; white-space:nowrap; }
+    .tb-item b { color: var(--green); }
+    #tb-status-dot {
+      width:8px; height:8px; border-radius:50%;
+      display:inline-block;
+      background: var(--green);
+      box-shadow: 0 0 4px var(--green);
+      margin-right:5px;
+    }
+
+    /* ── Layout ──────────────────────────────────────────────────────── */
+    #main {
+      display: grid;
+      grid-template-columns: 300px 1fr 268px;
+      height: calc(100vh - 30px);
+      gap: 3px; padding: 3px;
+      background: #1a1a1a;
+    }
+
+    /* ── Panel base ───────────────────────────────────────────────────── */
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      min-height: 0; overflow: hidden;
+    }
+    .panel-hdr {
+      height: var(--hdr-h);
+      line-height: var(--hdr-h);
+      flex-shrink: 0;
+      background: var(--header);
+      border-bottom: 1px solid var(--border);
+      padding: 0 10px;
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 10px; font-family:'Roboto Mono',monospace;
+      text-transform: uppercase; letter-spacing: 0.8px; color: var(--text);
+    }
+    .badge {
+      font-size: 9px; padding: 1px 7px;
+      background:#252525; border:1px solid #555; border-radius:2px;
+      color: var(--green);
+    }
+    .badge.warn { color: var(--yellow); }
+
+    /* ── LEFT: FPV Camera ────────────────────────────────────────────── */
+    #cam-body { flex:1; background:#0a0a0a; overflow:hidden; position:relative; }
+    #cam-img  { width:100%; height:100%; object-fit:cover; display:block; }
+    .cam-hud  {
+      position:absolute; bottom:8px; left:8px;
+      font-family:'Roboto Mono',monospace; font-size:9px;
+      color:#0f0; background:rgba(0,0,0,0.6);
+      padding:4px 8px; line-height:1.7;
+    }
+
+    /* ── CENTER: Simulation ───────────────────────────────────────────── */
+    #center-col { display:flex; flex-direction:column; min-height:0; }
+
+    /* Layer bar */
+    #layer-bar {
+      background:#333; border-bottom:1px solid var(--border);
+      display:flex; align-items:center;
+      padding:4px 10px; gap:5px; flex-shrink:0; flex-wrap:wrap;
+    }
+    .lb-lbl { font-size:9px; color:var(--muted); font-family:'Roboto Mono',monospace; margin-right:3px; }
+    .ltog {
+      display:inline-flex; align-items:center; gap:3px;
+      font-size:9px; font-family:'Roboto Mono',monospace; color:var(--text);
+      cursor:pointer; padding:2px 7px;
+      background:#2a2a2a; border:1px solid #555; border-radius:2px; user-select:none;
+      transition: background .13s;
+    }
+    .ltog:hover { background:#404040; }
+    .ltog.on    { background:#1e4a28; border-color:#5aaa5a; color:#8dce8d; }
+    .ltog .dot  { width:6px; height:6px; border-radius:50%; background:currentColor; }
+
+    /* Zoom controls */
+    #zoom-bar {
+      background:#303030; border-bottom:1px solid var(--border);
+      display:flex; align-items:center; padding:3px 10px; gap:8px; flex-shrink:0;
+      font-size:9px; font-family:'Roboto Mono',monospace; color:var(--muted);
+    }
+    .ztog {
+      cursor:pointer; padding:2px 8px;
+      background:#252525; border:1px solid #555; border-radius:2px; color:var(--text);
+      font-size:10px; font-family:'Roboto Mono',monospace;
+      transition: background .1s;
+    }
+    .ztog:hover { background:#404040; }
+    #zoom-level { min-width:36px; text-align:center; }
+
+    /* Sim viewport (zoom/pan container) */
+    #sim-viewport {
+      flex:1; overflow:hidden; position:relative; cursor:grab;
+      background:#111;
+    }
+    #sim-viewport:active { cursor:grabbing; }
+    #sim-img {
+      display:block;
+      width: 100%; height: 100%;
+      object-fit: contain;
+      user-select:none;
+      -webkit-user-drag: none;
+      transform-origin: center center;
+    }
+
+    /* ── RIGHT column ─────────────────────────────────────────────────── */
+    #right-col { display:flex; flex-direction:column; gap:3px; min-height:0; }
+
+    #map-body {
+      flex:1; background:#141414;
+      display:flex; align-items:center; justify-content:center;
+      padding:8px; overflow:hidden; min-height:0;
+    }
+    #map-canvas { max-width:100%; max-height:100%; background:#f5f5f5; }
+
+    #tele-panel { flex-shrink:0; background:var(--panel); border:1px solid var(--border); }
+    #tele-body  { padding:7px 12px; font-family:'Roboto Mono',monospace; font-size:10px; line-height:1.95; }
+    .tr { display:flex; justify-content:space-between; border-bottom:1px solid #484848; }
+    .tr:last-child { border-bottom:none; }
+    .tl { color:var(--muted); }
+    .tv { color:#e0e0e0; }
+    .tv.ok  { color:var(--green); }
+    .tv.warn{ color:var(--yellow); }
+  </style>
+</head>
+<body>
+
+<!-- ── Toolbar ── -->
+<div id="toolbar">
+  <span class="tb-logo">ViBot&#8209;S&nbsp;|&nbsp;RViz</span>
+  <span class="tb-sep"></span>
+  <span class="tb-item">Fixed Frame:&nbsp;<b id="tb-frame">map</b></span>
+  <span class="tb-item">Time:&nbsp;<b id="tb-time">0.0 s</b></span>
+  <span class="tb-item">FPS:&nbsp;<b id="tb-fps">--</b></span>
+  <span class="tb-item" style="margin-left:auto">
+    <span id="tb-status-dot"></span>Mode:&nbsp;<b>SIMULATION</b>
+  </span>
+</div>
+
+<div id="main">
+
+  <!-- LEFT: FPV Camera -->
+  <div class="panel">
+    <div class="panel-hdr">
+      Camera &nbsp;[/robot/image_raw]
+      <div class="badge">ORB · SLAM</div>
+    </div>
+    <div id="cam-body">
+      <img id="cam-img" src="/stream/video" alt="FPV"/>
+      <div class="cam-hud">
+        Topics:&nbsp;/image_raw<br>
+        Plugin:&nbsp;ORB&#8209;SLAM&nbsp;Lite
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTER: Simulation -->
+  <div class="panel" id="center-col">
+    <div class="panel-hdr">
+      Sim View &nbsp;[/vibot/sim_view]
+      <div class="badge" id="sim-badge">A* · ACTIVE</div>
+    </div>
+
+    <!-- Layer toggles -->
+    <div id="layer-bar">
+      <span class="lb-lbl">LAYERS:</span>
+      <span class="ltog on" data-layer="map"        onclick="toggleLayer(this)"><span class="dot"></span>Map</span>
+      <span class="ltog on" data-layer="path"       onclick="toggleLayer(this)"><span class="dot"></span>Path</span>
+      <span class="ltog on" data-layer="robot"      onclick="toggleLayer(this)"><span class="dot"></span>Robot</span>
+      <span class="ltog on" data-layer="trajectory" onclick="toggleLayer(this)"><span class="dot"></span>Trail</span>
+      <span class="ltog on" data-layer="fov"        onclick="toggleLayer(this)"><span class="dot"></span>FOV</span>
+      <span class="ltog on" data-layer="axes"       onclick="toggleLayer(this)"><span class="dot"></span>Axes</span>
+      <span class="ltog on" data-layer="legend"     onclick="toggleLayer(this)"><span class="dot"></span>Legend</span>
+    </div>
+
+    <!-- Zoom controls -->
+    <div id="zoom-bar">
+      ZOOM:
+      <span class="ztog" onclick="adjustZoom(-0.2)">&#8722;</span>
+      <span id="zoom-level">100%</span>
+      <span class="ztog" onclick="adjustZoom(+0.2)">+</span>
+      <span class="ztog" onclick="resetView()" style="margin-left:4px">Reset</span>
+      <span style="margin-left:8px">Scroll wheel to zoom · Drag to pan</span>
+    </div>
+
+    <!-- Zoom/Pan viewport -->
+    <div id="sim-viewport">
+      <img id="sim-img" src="/stream/sim_view" alt="RViz Simulation"
+           onerror="setTimeout(()=>{ this.src='/stream/sim_view?t='+Date.now(); },1500)"/>
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div id="right-col">
+
+    <div class="panel" style="flex:1; min-height:0;">
+      <div class="panel-hdr">
+        Grid Map &nbsp;[/vibot/map]
+        <div class="badge">A* FOUND</div>
+      </div>
+      <div id="map-body">
+        <canvas id="map-canvas"></canvas>
+      </div>
+    </div>
+
+    <div id="tele-panel">
+      <div class="panel-hdr">Robot State &nbsp;[/vibot/odom]</div>
+      <div id="tele-body">
+        <div class="tr"><span class="tl">Pos X</span> <span class="tv" id="t-x">--</span></div>
+        <div class="tr"><span class="tl">Pos Y</span> <span class="tv" id="t-y">--</span></div>
+        <div class="tr"><span class="tl">Heading</span><span class="tv" id="t-h">--</span></div>
+        <div class="tr"><span class="tl">Nav</span>   <span class="tv ok" id="t-nav">--</span></div>
+        <div class="tr"><span class="tl">Steps</span> <span class="tv" id="t-steps">--</span></div>
+        <div class="tr"><span class="tl">Time</span>  <span class="tv" id="t-el">--</span></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── Layer toggles ────────────────────────────────────────────────────────────
+function toggleLayer(el) {
+  const layer = el.dataset.layer;
+  const on    = el.classList.toggle('on');
+  fetch('/api/layers', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({layer, visible: on})
+  });
+}
+
+// ── Zoom / Pan ───────────────────────────────────────────────────────────────
+const vp  = document.getElementById('sim-viewport');
+const img = document.getElementById('sim-img');
+
+let pz = 1.0, ptx = 0, pty = 0;   // zoom, pan
+let dragging = false, dx0 = 0, dy0 = 0, tx0 = 0, ty0 = 0;
+
+function applyTransform() {
+  img.style.transform = `translate(${ptx}px, ${pty}px) scale(${pz})`;
+  document.getElementById('zoom-level').textContent = Math.round(pz * 100) + '%';
+}
+
+function clampPan() {
+  // Keep image from panning fully out of viewport
+  const vpW = vp.clientWidth, vpH = vp.clientHeight;
+  const iW = img.naturalWidth || 800;
+  const iH = img.naturalHeight || 550;
+  const maxX = Math.max(0, (iW * pz - vpW) / 2 + 40);
+  const maxY = Math.max(0, (iH * pz - vpH) / 2 + 40);
+  ptx = Math.max(-maxX - 40, Math.min(maxX + 40, ptx));
+  pty = Math.max(-maxY - 40, Math.min(maxY + 40, pty));
+}
+
+function adjustZoom(delta) {
+  pz = Math.max(0.3, Math.min(4.0, pz + delta));
+  clampPan(); applyTransform();
+}
+function resetView() { pz = 1.0; ptx = 0; pty = 0; applyTransform(); }
+applyTransform();
+
+// Mouse wheel zoom
+vp.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const dir = e.deltaY < 0 ? 0.15 : -0.15;
+  adjustZoom(dir);
+}, { passive: false });
+
+// Drag to pan
+vp.addEventListener('mousedown', (e) => {
+  dragging = true; dx0 = e.clientX; dy0 = e.clientY; tx0 = ptx; ty0 = pty;
+});
+window.addEventListener('mousemove', (e) => {
+  if (!dragging) return;
+  ptx = tx0 + (e.clientX - dx0);
+  pty = ty0 + (e.clientY - dy0);
+  clampPan(); applyTransform();
+});
+window.addEventListener('mouseup', () => { dragging = false; });
+
+// ── U-Map canvas ─────────────────────────────────────────────────────────────
+const mCanvas = document.getElementById('map-canvas');
+const mCtx    = mCanvas.getContext('2d');
+let path = [], rx = 0, ry = 0, th = 0;
+
+function renderMap(grid) {
+  if (!grid || !grid.length) return;
+  const wrap = document.getElementById('map-body');
+  const R = grid.length, C = grid[0].length, asp = C/R;
+  let W = wrap.clientWidth - 16, H = W / asp;
+  if (H > wrap.clientHeight - 16) { H = wrap.clientHeight - 16; W = H * asp; }
+  W = Math.floor(W); H = Math.floor(H);
+  mCanvas.width = W; mCanvas.height = H;
+  const sx = W/C, sy = H/R;
+
+  for (let r=0; r<R; r++)
+    for (let c=0; c<C; c++) {
+      mCtx.fillStyle = grid[r][c]===1 ? '#1a1a1a' : '#f5f5f5';
+      mCtx.fillRect(c*sx, r*sy, sx+0.5, sy+0.5);
+    }
+
+  // A* path
+  if (path.length > 1) {
+    mCtx.beginPath();
+    mCtx.moveTo(path[0][1]*sx+sx/2, path[0][0]*sy+sy/2);
+    for (let i=1; i<path.length; i++)
+      mCtx.lineTo(path[i][1]*sx+sx/2, path[i][0]*sy+sy/2);
+    mCtx.strokeStyle='#4caf50'; mCtx.lineWidth=2.5;
+    mCtx.lineCap='round'; mCtx.lineJoin='round'; mCtx.stroke();
+  }
+
+  // Start
+  if (path.length) {
+    mCtx.fillStyle='#3388cc';
+    mCtx.beginPath(); mCtx.arc(path[0][1]*sx+sx/2, path[0][0]*sy+sy/2, 5, 0, 2*Math.PI); mCtx.fill();
+  }
+
+  // Goal (row=27, col=7)
+  mCtx.fillStyle='#cc3333';
+  mCtx.beginPath(); mCtx.arc(7*sx+sx/2, 27*sy+sy/2, 5, 0, 2*Math.PI); mCtx.fill();
+
+  // Robot arrow
+  mCtx.save();
+  mCtx.translate(rx*sx+sx/2, ry*sy+sy/2); mCtx.rotate(th+Math.PI/2);
+  mCtx.fillStyle='#2266cc';
+  mCtx.beginPath(); mCtx.moveTo(0,-9); mCtx.lineTo(6,7); mCtx.lineTo(-6,7); mCtx.fill();
+  mCtx.restore();
+}
+
+// ── SSE ──────────────────────────────────────────────────────────────────────
+let lastT=Date.now(), frames=0;
+const sse = new EventSource('/stream/events');
+sse.onmessage = (e) => {
+  const d = JSON.parse(e.data);
+  rx=d.smooth_x; ry=d.smooth_y; th=d.smooth_theta; path=d.path||[];
+  renderMap(d.grid);
+
+  document.getElementById('t-x').textContent     = rx.toFixed(3)+' m';
+  document.getElementById('t-y').textContent     = ry.toFixed(3)+' m';
+  document.getElementById('t-h').textContent     = ((th*180/Math.PI)%360).toFixed(1)+' °';
+  const navEl = document.getElementById('t-nav');
+  navEl.textContent  = d.nav_status||'--';
+  navEl.className    = 'tv '+(d.nav_status==='GOAL REACHED'?'warn':'ok');
+  document.getElementById('t-steps').textContent = `${d.step_idx||0} / ${d.total_steps||'--'}`;
+  document.getElementById('t-el').textContent    = (d.elapsed||0).toFixed(1)+' s';
+  document.getElementById('tb-time').textContent = (d.elapsed||0).toFixed(1)+' s';
+
+  frames++;
+  const now = Date.now();
+  if (now-lastT > 1000) { document.getElementById('tb-fps').textContent=frames; frames=0; lastT=now; }
+};
+</script>
+</body>
+</html>
