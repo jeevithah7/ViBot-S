@@ -33,10 +33,10 @@ from control.pid_controller import PIDController, simple_pendulum_process
 from simulation_3d.environment import Environment3D
 
 # ─── CONFIGURATION ────────────────────────────────────────────────────────────
-MAP_ROWS     = 30
-MAP_COLS     = 14
-START        = (2,  7)
-GOAL         = (27, 7)
+MAP_ROWS     = 24
+MAP_COLS     = 32
+START        = (5,  5)
+GOAL         = (18, 28)
 HISTORY_LEN  = 120      # samples to keep in rolling buffer
 STEP_PERIOD  = 0.45     # seconds between robot path steps
 PID_PERIOD   = 0.02     # PID loop period (50 Hz)
@@ -66,7 +66,7 @@ class LiveRobot:
         self._rng          = np.random.default_rng(seed=7)
 
         # Build map + path
-        self._og = OccupancyGrid.build_sample_map(rows=MAP_ROWS, cols=MAP_COLS)
+        self._og = OccupancyGrid.build_house_map(rows=MAP_ROWS, cols=MAP_COLS)
         self.env3d = Environment3D(self._og.grid)
         planner  = AStarPlanner(self._og, diagonal=True)
         self._path = planner.plan(START, GOAL)

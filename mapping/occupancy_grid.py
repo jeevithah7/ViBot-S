@@ -25,6 +25,14 @@ FREE     =  0
 OCCUPIED =  1
 UNKNOWN  = -1
 
+# Object specific IDs (all > 0 are obstacles to A*)
+SOFA     = 2
+TABLE    = 3
+CHAIR_Y  = 4
+CHAIR_B  = 5
+PLANT    = 6
+TV       = 7
+
 
 # ─── OCCUPANCY GRID CLASS ─────────────────────────────────────────────────────
 class OccupancyGrid:
@@ -77,11 +85,11 @@ class OccupancyGrid:
         cs = max(c_start, 0);  ce = min(c_end, self.cols)
         self._grid[rs:re, cs:ce] = FREE
 
-    def mark_obstacle(self, r_start: int, r_end: int, c_start: int, c_end: int):
-        """Mark a rectangular region as OCCUPIED."""
+    def mark_obstacle(self, r_start: int, r_end: int, c_start: int, c_end: int, val: int = OCCUPIED):
+        """Mark a rectangular region as OCCUPIED (or a specific object ID)."""
         rs = max(r_start, 0);  re = min(r_end, self.rows)
         cs = max(c_start, 0);  ce = min(c_end, self.cols)
-        self._grid[rs:re, cs:ce] = OCCUPIED
+        self._grid[rs:re, cs:ce] = val
 
     # ------------------------------------------------------------------ robot
     def set_robot_position(self, row: int, col: int):
@@ -112,6 +120,38 @@ class OccupancyGrid:
         og.mark_obstacle(20, 22, 2, 6)
 
         og.set_robot_position(2, 7)
+        return og
+
+    @classmethod
+    def build_house_map(cls, rows: int = 24, cols: int = 32) -> "OccupancyGrid":
+        """Builds a living room map matching the user's reference image."""
+        og = cls(rows=rows, cols=cols, cell_size=0.15)
+        og.mark_free_area(0, rows, 0, cols)
+
+        # Outer walls
+        og.mark_obstacle(0, rows, 0, 1) # Left
+        og.mark_obstacle(0, rows, cols-1, cols) # Right
+        og.mark_obstacle(0, 1, 0, cols) # Top
+        og.mark_obstacle(rows-1, rows, 0, cols) # Bottom
+
+        # TV Stand / Fireplace on the top wall
+        og.mark_obstacle(1, 3, 5, 25, TV)
+
+        # L-Shaped White Sofa
+        og.mark_obstacle(10, 18, 20, 24, SOFA) # Main body
+        og.mark_obstacle(8, 12, 16, 20, SOFA)  # L-extension
+
+        # Coffee Table
+        og.mark_obstacle(12, 15, 12, 17, TABLE)
+
+        # Chairs
+        og.mark_obstacle(9, 11, 6, 8, CHAIR_B) # Blue chair (top left of rug)
+        og.mark_obstacle(15, 17, 7, 9, CHAIR_Y) # Yellow chair (bottom left)
+
+        # Plants (top right corner)
+        og.mark_obstacle(2, 4, 26, 28, PLANT)
+
+        og.set_robot_position(5, 5) # Default start
         return og
 
     # ------------------------------------------------------------------ display
