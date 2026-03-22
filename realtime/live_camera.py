@@ -31,6 +31,7 @@ if ROOT not in sys.path:
 
 from vision.camera_capture import SimulatedCamera
 from vision.feature_detection_orb import ORBDetector
+from vision.feature_matching import FeatureMatcher
 
 # ─── MODE SWITCH ──────────────────────────────────────────────────────────────
 MODE = "simulation"   # "simulation"  |  "hardware"
@@ -73,6 +74,9 @@ class LiveCamera:
         self._t0 = time.time()
         self._rng = np.random.default_rng(seed=99)
         self._detector = ORBDetector(n_features=n_features)
+        self._matcher = FeatureMatcher(ratio_threshold=0.8)
+        self._prev_kp = None
+        self._prev_des = None
 
         # Shared state for last keypoints (for API)
         self._last_kp_count = 0
@@ -140,10 +144,20 @@ class LiveCamera:
         return frame
 
     def _draw_orb_overlay(
-        self, frame: np.ndarray, keypoints: list
+        self, frame: np.ndarray, keypoints: list, prev_kp: list | None = None, matches: list | None = None
     ) -> np.ndarray:
-        """Draw ORB keypoints with styled circles on the frame."""
+        """Draw ORB keypoints with styled circles and motion trails on the frame."""
         out = frame.copy()
+        
+        # Draw motion trails (optical flow visualization)
+        if prev_kp and matches:
+            for m in matches:
+                pt1 = keypoints[m.trainIdx].pt
+                pt2 = prev_kp[m.queryIdx].pt
+                x1, y1 = int(pt1[0]), int(pt1[1])
+                x2, y2 = int(pt2[0]), int(pt2[1])
+                cv2.line(out, (x2, y2), (x1, y1), _YELLOW, 1, cv2.LINE_AA)
+
         for kp in keypoints:
             x, y = int(kp.pt[0]), int(kp.pt[1])
             r     = max(3, int(kp.size / 2))
@@ -154,7 +168,7 @@ class LiveCamera:
         return out
 
     def _draw_hud(
-        self, frame: np.ndarray, kp_count: int, fps: float, t: float
+        self, frame: np.ndarray, kp_count: int, fps: float, t: float, match_count: int = 0
     ) -> np.ndarray:
         """Draw HUD overlay with stats, mode badge, and scan-line effect."""
         out = frame.copy()
@@ -164,6 +178,7 @@ class LiveCamera:
             f"ViBot-S  |  SIM CAM",
             f"Frame : {self._frame_idx:05d}",
             f"ORB   : {kp_count} kp",
+            f"Tracks: {match_count}",
             f"FPS   : {fps:.1f}",
         ]
         for i, line in enumerate(panel_lines):
@@ -203,11 +218,19 @@ class LiveCamera:
         raw = self._make_corridor_frame(t)
 
         # ORB detection on this frame
-        kp, _ = self._detector.detect_and_compute(raw)
+        kp, des = self._detector.detect_and_compute(raw)
         self._last_kp_count = len(kp)
 
-        annotated = self._draw_orb_overlay(raw, kp)
-        annotated = self._draw_hud(annotated, len(kp), fps, t)
+        matches = None
+        if self._prev_des is not None and des is not None:
+            matches = self._matcher.match(self._prev_des, des)
+            self._last_match_count = len(matches)
+
+        annotated = self._draw_orb_overlay(raw, kp, self._prev_kp, matches)
+        annotated = self._draw_hud(annotated, len(kp), fps, t, self._last_match_count)
+
+        self._prev_kp = kp
+        self._prev_des = des
 
         self._frame_idx += 1
 
@@ -226,6 +249,7 @@ class LiveCamera:
         return {
             "kp_count"   : self._last_kp_count,
             "frame_idx"  : self._frame_idx,
+            "match_count": self._last_match_count,
         }
 
 
