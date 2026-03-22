@@ -59,22 +59,30 @@ ViBot-S/
 pip install opencv-python numpy matplotlib scipy
 ```
 
-### 2. Run the simulation
+### 2. Run the Real-Time Web Dashboard
 
+The new v2.0 update includes a full Flask-based web dashboard that runs a live simulation.
+
+**On Windows:**
+Simply double-click `run_demo.bat` or run it from the terminal:
 ```bash
-cd ViBot-S
-python main.py
+.\run_demo.bat
+```
+This will automatically start the server and open the dashboard in your default browser.
+
+**On Mac/Linux (or manually):**
+Activate your virtual environment and run the launcher:
+```bash
+python demo/demo_mode.py
 ```
 
-A series of windows will appear:
-1. **ORB Keypoints** — detected feature points on a synthetic frame.
-2. **Feature Matches** — correspondences between frame 1 and frame 2.
-3. **VO Trajectory** — estimated camera path from visual odometry.
-4. **Occupancy Grid + A\* Path** — map with the planned route.
-5. **PID Step Response** — robot balancing from a 5° initial tilt.
-6. **Animated Simulation** — robot navigating the grid in real-time.
+### 3. (Optional) Run the Original Offline Simulation
 
-> **Tip :** Close each window to advance to the next step.
+To see the step-by-step algorithms (OpenCV windows, Plotly animations):
+```bash
+python main.py
+```
+A series of matplotlib windows will appear. Close each window to advance to the next step.
 
 ---
 

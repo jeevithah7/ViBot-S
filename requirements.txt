@@ -1,0 +1,14 @@
+# ViBot-S Requirements
+# Core dependencies (already installed in original project)
+numpy>=1.24
+scipy>=1.10
+matplotlib>=3.7
+opencv-python-headless>=4.8    # use opencv-python if you need GUI windows
+
+# Dashboard (new in v2.0)
+flask>=3.0
+
+# Hardware (optional – only needed with real Raspberry Pi hardware)
+# smbus2              # for MPU6050 I2C
+# mpu6050-raspberrypi # for MPU6050 sensor readings
+# picamera2           # for Raspberry Pi native camera
