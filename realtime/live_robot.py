@@ -33,10 +33,10 @@ from control.pid_controller import PIDController, simple_pendulum_process
 from simulation_3d.environment import Environment3D
 
 # ─── CONFIGURATION ────────────────────────────────────────────────────────────
-MAP_ROWS     = 24
-MAP_COLS     = 32
-START        = (5,  5)
-GOAL         = (18, 28)
+MAP_ROWS     = 28
+MAP_COLS     = 34
+START        = (24, 21)
+GOAL         = (12, 10)
 HISTORY_LEN  = 120      # samples to keep in rolling buffer
 STEP_PERIOD  = 0.45     # seconds between robot path steps
 PID_PERIOD   = 0.02     # PID loop period (50 Hz)
