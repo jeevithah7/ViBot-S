@@ -26,12 +26,14 @@ OCCUPIED =  1
 UNKNOWN  = -1
 
 # Object specific IDs (all > 0 are obstacles to A*)
-SOFA     = 2
-TABLE    = 3
-CHAIR_Y  = 4
-CHAIR_B  = 5
-PLANT    = 6
-TV       = 7
+DESK        = 2
+CHAIR       = 3
+BED_CYAN    = 4
+WEIGHT_BNCH = 5
+WATER_COOL  = 6
+WARDROBE    = 7
+LAMP        = 8
+COAT_RACK   = 9
 
 
 # ─── OCCUPANCY GRID CLASS ─────────────────────────────────────────────────────
@@ -123,35 +125,39 @@ class OccupancyGrid:
         return og
 
     @classmethod
-    def build_house_map(cls, rows: int = 24, cols: int = 32) -> "OccupancyGrid":
-        """Builds a living room map matching the user's reference image."""
+    def build_house_map(cls, rows: int = 28, cols: int = 34) -> "OccupancyGrid":
+        """Builds a map matching the small gym/office room layout."""
         og = cls(rows=rows, cols=cols, cell_size=0.15)
         og.mark_free_area(0, rows, 0, cols)
 
-        # Outer walls
-        og.mark_obstacle(0, rows, 0, 1) # Left
-        og.mark_obstacle(0, rows, cols-1, cols) # Right
-        og.mark_obstacle(0, 1, 0, cols) # Top
-        og.mark_obstacle(rows-1, rows, 0, cols) # Bottom
+        # 1. Outer Perimeter Walls
+        og.mark_obstacle(0, 1, 0, cols)        # Top wall
+        og.mark_obstacle(rows-2, rows, 0, cols) # Bottom wall
+        og.mark_obstacle(0, rows, 0, 2)        # Left wall
+        og.mark_obstacle(0, rows, cols-2, cols) # Right wall
 
-        # TV Stand / Fireplace on the top wall
-        og.mark_obstacle(1, 3, 5, 25, TV)
+        # 2. Objects
+        # Desk (Left wall)
+        og.mark_obstacle(14, 19, 2, 13, DESK)
+        # Office Chair
+        og.mark_obstacle(18, 22, 12, 16, CHAIR)
+        # Cyan Bed (Bottom left)
+        og.mark_obstacle(23, 27, 2, 16, BED_CYAN)
+        
+        # Weight Bench & Barbell (Center-top right)
+        og.mark_obstacle(12, 17, 18, 26, WEIGHT_BNCH)
 
-        # L-Shaped White Sofa
-        og.mark_obstacle(10, 18, 20, 24, SOFA) # Main body
-        og.mark_obstacle(8, 12, 16, 20, SOFA)  # L-extension
+        # Wardrobe (Right wall)
+        og.mark_obstacle(8, 20, 28, 32, WARDROBE)
+        # Water Cooler
+        og.mark_obstacle(20, 23, 29, 32, WATER_COOL)
+        # Floor Lamp
+        og.mark_obstacle(24, 26, 26, 29, LAMP)
 
-        # Coffee Table
-        og.mark_obstacle(12, 15, 12, 17, TABLE)
+        # Coat Rack (Top left corner)
+        og.mark_obstacle(2, 5, 2, 5, COAT_RACK)
 
-        # Chairs
-        og.mark_obstacle(9, 11, 6, 8, CHAIR_B) # Blue chair (top left of rug)
-        og.mark_obstacle(15, 17, 7, 9, CHAIR_Y) # Yellow chair (bottom left)
-
-        # Plants (top right corner)
-        og.mark_obstacle(2, 4, 26, 28, PLANT)
-
-        og.set_robot_position(5, 5) # Default start
+        og.set_robot_position(24, 21) # Safe start zone
         return og
 
     # ------------------------------------------------------------------ display

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ViBot-S | Autonomous SLAM Navigation Simulation</title>
+  <link rel="stylesheet" href="vibot_3d.css" />
+</head>
+<body>
+  <div id="loader">
+    <div class="loader-inner">
+      <div class="loader-ring"></div><div class="loader-ring r2"></div><div class="loader-ring r3"></div>
+      <div class="loader-logo"><span class="logo-vi">Vi</span><span class="logo-bot">Bot</span><span class="logo-s">-S</span></div>
+      <div class="loader-text">INITIALIZING SLAM ENGINE</div>
+      <div class="loader-bar"><div class="loader-fill" id="loaderFill"></div></div>
+      <div class="loader-status" id="loaderStatus">Loading 3D environment...</div>
+    </div>
+  </div>
+
+  <div id="app" class="hidden">
+    <!-- BACKGROUND CANVAS -->
+    <div id="canvasWrap">
+      <canvas id="threeCanvas"></canvas>
+      <div class="scan-line"></div>
+      <div class="hud-cross" id="hudCross">
+        <div class="hud-line hud-h"></div><div class="hud-line hud-v"></div><div class="hud-circle"></div>
+      </div>
+      <div class="corner tl"></div><div class="corner tr"></div><div class="corner bl"></div><div class="corner br"></div>
+    </div>
+
+    <!-- FLOATING PANELS -->
+    <div id="minimap">
+      <div class="mm-header"><span>NAVIGATION MAP</span><span id="mmScale">1:1</span></div>
+      <canvas id="minimapCanvas" width="240" height="180"></canvas>
+      <div class="mm-legend">
+        <span><i style="background:#00f5ff"></i>Robot</span><span><i style="background:#ff6b35"></i>Path</span>
+        <span><i style="background:#7fff7f"></i>Free</span><span><i style="background:#ff3366"></i>Obstacle</span>
+      </div>
+    </div>
+
+    <div id="povPanel">
+      <div class="pov-header"><span>⬡ ROBOT POV</span><span class="pov-badge">LIVE</span></div>
+      <canvas id="povCanvas" width="320" height="200"></canvas>
+      <div class="pov-stats">
+        <div><label>YAW</label><span id="povYaw">0°</span></div>
+        <div><label>DIST</label><span id="distGoal">0.0m</span></div>
+      </div>
+    </div>
+
+    <!-- UI OVERLAYS -->
+    <header id="topBar">
+      <div class="nav-brand">
+        <div class="brand-icon">⬡</div><span class="brand-name"><span>Vi</span>Bot<em>-S</em></span>
+        <div class="brand-badge">AUTONOMOUS NAV SIM</div>
+      </div>
+      <div class="nav-status">
+        <div class="status-pill pulse" id="statusPill"><span class="pill-dot"></span><span id="statusText">READY</span></div>
+        <div class="stat-group">
+          <div class="stat-item"><label>FPS</label><span id="fpsCounter">60</span></div>
+          <div class="stat-item"><label>POINTS</label><span id="pointCount">0</span></div>
+          <div class="stat-item"><label>MODE</label><span id="modeLabel">ORBIT</span></div>
+        </div>
+      </div>
+      <div class="nav-actions">
+        <button class="icon-btn" id="btnRestart">↺</button>
+        <button class="icon-btn" id="btnCinematic">◈</button>
+        <button class="icon-btn active" id="btnOverlay">⊞</button>
+      </div>
+    </header>
+
+    <aside id="leftPanel">
+      <div class="panel-section">
+        <div class="section-header">⚙ SIMULATION</div>
+        <button class="ctrl-btn primary" id="btnStart" style="margin-bottom: 6px;">▶ START NAVIGATION</button>
+        <div class="waypoint-inputs" style="display: flex; gap: 4px; margin-bottom: 6px;">
+          <input type="text" id="inpStart" placeholder="Start X,Y (e.g. 2,2)" style="width: 50%; padding: 4px; font-size: 0.7rem; background: rgba(0,0,0,0.3); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px;">
+          <input type="text" id="inpEnd" placeholder="End X,Y (e.g. 20,6)" style="width: 50%; padding: 4px; font-size: 0.7rem; background: rgba(0,0,0,0.3); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px;">
+        </div>
+        <div style="display: flex; gap: 4px;">
+          <button class="ctrl-btn" id="btnPause" style="flex: 1;">⏸ PAUSE</button>
+          <button class="ctrl-btn danger" id="btnStop" style="flex: 1;">⏹ STOP</button>
+        </div>
+      </div>
+      <div class="panel-section">
+        <div class="section-header">🎮 MANUAL CONTROL</div>
+        <div class="control-grid">
+          <div class="ctrl-row"><button class="dir-btn" id="btnUp" title="Accelerate">▲</button></div>
+          <div class="ctrl-row"><button class="dir-btn" id="btnRotL" title="Turn Left">◀</button><button class="dir-btn" id="btnBack" title="Reverse">▼</button><button class="dir-btn" id="btnRotR" title="Turn Right">▶</button></div>
+          <div class="ctrl-row"><button class="dir-btn dash-btn" id="btnDash">BOOST</button></div>
+        </div>
+        <div class="key-hint">Arrow Keys · Space</div>
+      </div>
+      <div class="panel-section">
+        <div class="section-header">📡 SENSOR LAYERS</div>
+        <div class="toggle-list">
+          <label class="toggle-row"><input type="checkbox" id="togPointCloud" checked /><span class="tog"></span>Point Cloud</label>
+          <label class="toggle-row"><input type="checkbox" id="togMesh" checked /><span class="tog"></span>Mesh Lines</label>
+          <label class="toggle-row"><input type="checkbox" id="togLidar" checked /><span class="tog"></span>LiDAR Rays</label>
+          <label class="toggle-row"><input type="checkbox" id="togNavGrid" checked /><span class="tog"></span>Navigation Grid</label>
+          <label class="toggle-row"><input type="checkbox" id="togPath" checked /><span class="tog"></span>Path Lines</label>
+          <label class="toggle-row"><input type="checkbox" id="togFOV" checked /><span class="tog"></span>Sensor FOV</label>
+          <label class="toggle-row"><input type="checkbox" id="togTrail" checked /><span class="tog"></span>Flight Trail</label>
+        </div>
+      </div>
+      <div class="panel-section">
+        <div class="section-header">🎥 CAMERA</div>
+        <div class="cam-btns">
+          <button class="cam-btn active" id="camOrbit">ORBIT</button>
+          <button class="cam-btn" id="camPOV">POV</button>
+          <button class="cam-btn" id="camTop">TOP</button>
+          <button class="cam-btn" id="camCinema">CINEMATIC</button>
+        </div>
+      </div>
+      <div class="panel-section">
+        <div class="section-header">⚡ SPEED</div>
+        <input type="range" id="speedSlider" min="0.5" max="5" step="0.1" value="1.5" class="slider" />
+        <div class="slider-labels"><span>SLOW</span><span id="speedVal">1.5×</span><span>FAST</span></div>
+      </div>
+    </aside>
+
+    <aside id="rightPanel">
+      <div class="panel-section">
+        <div class="section-header">📊 TELEMETRY</div>
+        <div class="telem-grid">
+          <div class="telem-box"><label>POS X</label><span id="posX">0.00</span></div>
+          <div class="telem-box"><label>POS Y</label><span id="posY">0.00</span></div>
+          <div class="telem-box"><label>HEADING</label><span id="heading">0.0</span></div>
+          <div class="telem-box"><label>SPEED</label><span id="velocity">0.00</span></div>
+          <div class="telem-box"><label>ANG VEL</label><span id="angVel">0.00</span></div>
+        </div>
+      </div>
+      <div class="panel-section">
+        <div class="section-header">🤖 ROBOT STATE</div>
+        <div class="state-list">
+          <div class="state-row"><span>Nav Mode</span><span class="state-val" id="navMode">AUTO</span></div>
+          <div class="state-row"><span>SLAM Status</span><span class="state-val green" id="slamStatus">ACTIVE</span></div>
+          <div class="state-row"><span>Collision Risk</span><span class="state-val" id="collRisk">LOW</span></div>
+          <div class="state-row"><span>Map Coverage</span><span class="state-val" id="mapCov">0%</span></div>
+          <div class="state-row"><span>Progress</span><span class="state-val" id="pathProg">0/0</span></div>
+          <div class="state-row"><span>Battery</span><span class="state-val green" id="battery">98%</span></div>
+        </div>
+      </div>
+      <div class="panel-section">
+        <div class="section-header">📡 SENSORS</div>
+        <div class="sensor-bars">
+          <div class="sensor-bar-row"><label>FRNT</label><div class="sbar"><div class="sbar-fill" id="sFront" style="width:80%"></div></div><span id="sFrontVal">0.0m</span></div>
+          <div class="sensor-bar-row"><label>REAR</label><div class="sbar"><div class="sbar-fill" id="sRear" style="width:90%"></div></div><span id="sRearVal">0.0m</span></div>
+          <div class="sensor-bar-row"><label>LEFT</label><div class="sbar"><div class="sbar-fill" id="sLeft" style="width:60%"></div></div><span id="sLeftVal">0.0m</span></div>
+          <div class="sensor-bar-row"><label>RGHT</label><div class="sbar"><div class="sbar-fill" id="sRight" style="width:70%"></div></div><span id="sRightVal">0.0m</span></div>
+          <div class="sensor-bar-row"><label>UP</label><div class="sbar"><div class="sbar-fill" id="sUp" style="width:95%"></div></div><span id="sUpVal">0.0m</span></div>
+          <div class="sensor-bar-row"><label>DOWN</label><div class="sbar"><div class="sbar-fill" id="sDown" style="width:30%"></div></div><span id="sDownVal">0.0m</span></div>
+        </div>
+      </div>
+      <div class="panel-section">
+        <div class="section-header">🗺 SLAM LOG</div>
+        <div class="log-box" id="slamLog">
+          <div class="log-entry">[INIT] SLAM engine online</div>
+          <div class="log-entry">[INIT] LiDAR sensor ready</div>
+          <div class="log-entry">[INIT] Depth camera online</div>
+        </div>
+      </div>
+    </aside>
+
+    <footer id="bottomBar">
+      <div class="bb-item"><label>SIM TIME</label><span id="simTime">00:00</span></div>
+      <div class="bb-sep"></div>
+      <div class="bb-item"><label>WAYPOINT</label><span id="wpLabel">—</span></div>
+      <div class="bb-sep"></div>
+      <div class="progress-bar-wrap"><label>MISSION</label><div class="prog-outer"><div class="prog-inner" id="missionProg"></div></div><span id="missionPct">0%</span></div>
+      <div class="bb-sep"></div>
+      <div class="bb-item framerate"><span id="renderInfo">THREE.js WebGL</span></div>
+    </footer>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="vibot_3d.js"></script>
+</body>
+</html>
