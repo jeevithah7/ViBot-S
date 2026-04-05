@@ -99,14 +99,48 @@ function isFree(r, c) {
   return occupancy[r][c] === 0;
 }
 
+/* ═══════════════════ OBSTACLE SAFETY BUFFER ═══════════════ */
+const SAFETY_BUFFER = 1;
+const inflatedOccupancy = [];
+(function buildInflatedGrid() {
+  for (let r = 0; r < MAP_D; r++) {
+    inflatedOccupancy[r] = [];
+    for (let c = 0; c < MAP_W; c++) inflatedOccupancy[r][c] = 0;
+  }
+  for (let r = 0; r < MAP_D; r++) {
+    for (let c = 0; c < MAP_W; c++) {
+      if (!occupancy[r][c]) continue;
+      for (let dr = -SAFETY_BUFFER; dr <= SAFETY_BUFFER; dr++) {
+        for (let dc = -SAFETY_BUFFER; dc <= SAFETY_BUFFER; dc++) {
+          const nr = r + dr, nc = c + dc;
+          if (nr >= 0 && nr < MAP_D && nc >= 0 && nc < MAP_W) {
+            inflatedOccupancy[nr][nc] = 1;
+          }
+        }
+      }
+    }
+  }
+})();
+
+function isSafeForPath(r, c) {
+  if (r < 0 || r >= MAP_D || c < 0 || c >= MAP_W) return false;
+  return inflatedOccupancy[r][c] === 0;
+}
+
 /* ═══════════════════ A* PATH PLANNER ═══════════════════ */
-function astar(sr, sc, er, ec) {
+function astar(sr, sc, er, ec, useSafeGrid) {
+  if (useSafeGrid === undefined) useSafeGrid = true;
+  const checkFn = useSafeGrid ? isSafeForPath : isFree;
   const key = (r, c) => r * MAP_W + c;
   const h = (r, c) => Math.abs(r - er) + Math.abs(c - ec);
   const open = new Map();
   const closed = new Set();
   const came = new Map();
   const g = new Map();
+  if (!isFree(sr, sc) || !isFree(er, ec)) {
+    if (useSafeGrid) return astar(sr, sc, er, ec, false);
+    return [];
+  }
   g.set(key(sr, sc), 0);
   open.set(key(sr, sc), h(sr, sc));
   const dirs = [[0,1],[0,-1],[1,0],[-1,0],[1,1],[-1,-1],[1,-1],[-1,1]];
@@ -126,7 +160,8 @@ function astar(sr, sc, er, ec) {
     closed.add(bestK);
     for (const [dr,dc] of dirs) {
       const nr=cr+dr, nc=cc+dc;
-      if (!isFree(nr,nc)) continue;
+      const isGoal = (nr === er && nc === ec);
+      if (isGoal ? !isFree(nr,nc) : !checkFn(nr,nc)) continue;
       const nk = key(nr,nc);
       if (closed.has(nk)) continue;
       const ng = (g.get(bestK)||0) + (Math.abs(dr)+Math.abs(dc)===2?1.41:1);
@@ -137,6 +172,7 @@ function astar(sr, sc, er, ec) {
       }
     }
   }
+  if (useSafeGrid) return astar(sr, sc, er, ec, false);
   return [];
 }
 
@@ -379,7 +415,10 @@ function buildPathViz() {
 }
 
 function updatePathViz() {
-  if (!pathWaypoints.length) return;
+  if (!pathWaypoints.length) {
+    pathLine.geometry.setFromPoints([]);
+    return;
+  }
   const pts = pathWaypoints.map(([r,c]) =>
     new THREE.Vector3(c - MAP_W/2 + 0.5, RS.y, r - MAP_D/2 + 0.5));
   pathLine.geometry.setFromPoints(pts);
@@ -464,23 +503,68 @@ function planMission() {
   const inpS = document.getElementById('inpStart');
   const inpE = document.getElementById('inpEnd');
   let pts = [...WAYPOINTS_DEF];
-  if(inpS && inpE && inpS.value && inpE.value) {
-    const [sc,sr] = inpS.value.split(',').map(n=>parseInt(n));
-    const [ec,er] = inpE.value.split(',').map(n=>parseInt(n));
-    if(!isNaN(sc) && !isNaN(sr) && !isNaN(ec) && !isNaN(er)) {
-       pts = [[sr,sc],[er,ec]];
+  
+  if ((inpE && inpE.value) || (inpS && inpS.value)) {
+    // Determine end coordinates:
+    let ec, er;
+    if (inpE && inpE.value) {
+      const endParts = inpE.value.split(',');
+      if (endParts.length < 2) {
+         toast('Invalid End format. Use: X,Y', 'warn'); return;
+      }
+      ec = parseInt(endParts[0].trim());
+      er = parseInt(endParts[1].trim());
+      if (isNaN(ec) || isNaN(er)) {
+         toast('Invalid End numbers', 'warn'); return;
+      }
+    } else {
+      toast('Please provide an End coordinate', 'warn'); return;
     }
+
+    // Determine start coordinates:
+    let sc, sr;
+    if (inpS && inpS.value) {
+      const startParts = inpS.value.split(',');
+      if (startParts.length < 2) {
+         toast('Invalid Start format. Use: X,Y', 'warn'); return;
+      }
+      sc = parseInt(startParts[0].trim());
+      sr = parseInt(startParts[1].trim());
+      if (isNaN(sc) || isNaN(sr)) {
+         toast('Invalid Start numbers', 'warn'); return;
+      }
+    } else {
+      // Use bot's current logical location
+      sc = Math.max(0, Math.min(MAP_W-1, Math.round(RS.x + MAP_W/2 - 0.5)));
+      sr = Math.max(0, Math.min(MAP_D-1, Math.round(RS.z + MAP_D/2 - 0.5)));
+    }
+    
+    pts = [[sr, sc], [er, ec]];
   }
 
+  let pathFound = true;
   for (let i = 0; i < pts.length-1; i++) {
     const [sr,sc] = pts[i], [er,ec] = pts[i+1];
     const seg = astar(sr,sc,er,ec);
-    if (seg.length === 0) continue;
+    if (seg.length === 0) {
+      toast(`Cannot reach (${ec}, ${er}) - Coordinates are blocked by walls!`, 'error');
+      addLog(`[PLAN] Error: Destination (${ec}, ${er}) is enclosed in an obstacle.`, 'error');
+      pathFound = false;
+      continue;
+    }
     if (i===0) pathWaypoints.push(...seg);
     else        pathWaypoints.push(...seg.slice(1));
   }
-  // Move robot to first waypoint
-  if (pathWaypoints.length) {
+  
+  if (!pathFound || pathWaypoints.length === 0) {
+     pathWaypoints = [];
+     currentWP = 0;
+     updatePathViz();
+     addLog(`[PLAN] Mission aborted - No valid path`, 'warn');
+     return false;
+  }
+  // Teleport ONLY if the user explicitly typed a start coordinate
+  if (pathWaypoints.length && inpS && inpS.value) {
     const [sr, sc] = pathWaypoints[0];
     RS.x = sc - MAP_W/2 + 0.5;
     RS.z = sr - MAP_D/2 + 0.5;
@@ -490,6 +574,11 @@ function planMission() {
   if(document.getElementById('pathProg')) document.getElementById('pathProg').textContent = `0/${pathWaypoints.length}`;
   updatePathViz();
   addLog(`[PLAN] ${pathWaypoints.length} waypoints computed`, 'ok');
+  
+  const st = document.getElementById('statusText');
+  if (st && st.textContent === 'COMPLETE') st.textContent = 'READY';
+  
+  return true;
 }
 
 /* ═══════════════════ SENSOR UPDATE ═════════════════════ */
@@ -600,38 +689,65 @@ function drawPOV() {
 }
 
 /* ═══════════════════ AUTONOMOUS NAVIGATION ═════════════ */
+let replanCooldown = 0;
+let replanCount = 0;
 function navigateAuto(dt) {
   if (!pathWaypoints.length || currentWP >= pathWaypoints.length) {
-    if (isRunning) { isRunning=false; addLog('[NAV] Mission complete!','ok'); toast('Mission complete!','info'); }
+    if (isRunning) { isRunning=false; addLog('[NAV] Mission complete!','ok'); toast('Mission complete!','info'); document.getElementById('statusText').textContent='COMPLETE'; }
     return;
   }
+  if (replanCooldown > 0) replanCooldown -= dt;
+
   const [tr, tc] = pathWaypoints[currentWP];
   const tx = tc - MAP_W/2 + 0.5, tz = tr - MAP_D/2 + 0.5;
   const dx = tx - RS.x, dz = tz - RS.z;
   const dist = Math.sqrt(dx*dx+dz*dz);
 
-  if (dist < 0.25) { currentWP++; return; }
+  if (dist < 0.3) { currentWP++; return; }
 
+  // ─── Collision Detection & Dynamic Re-planning ───
+  const nearObstacle = SENSORS.front < 1.5 || SENSORS.left < 0.7 || SENSORS.right < 0.7;
+  if (nearObstacle && replanCooldown <= 0) {
+    replanCooldown = 2.0;
+    const curC = Math.max(0, Math.min(MAP_W-1, Math.round(RS.x + MAP_W/2 - 0.5)));
+    const curR = Math.max(0, Math.min(MAP_D-1, Math.round(RS.z + MAP_D/2 - 0.5)));
+    const [goalR, goalC] = pathWaypoints[pathWaypoints.length - 1];
+    addLog('[REPLAN] Obstacle detected — re-routing...', 'warn');
+    document.getElementById('navMode').textContent = 'REPLAN';
+    const newPath = astar(curR, curC, goalR, goalC);
+    if (newPath.length > 0) {
+      pathWaypoints = newPath;
+      currentWP = 0;
+      replanCount++;
+      updatePathViz();
+      addLog(`[REPLAN] New path: ${newPath.length} waypoints (replan #${replanCount})`, 'ok');
+    } else {
+      addLog('[REPLAN] No alternate path — backing up', 'warn');
+      RS.x -= Math.cos(RS.yaw) * 0.15;
+      RS.z -= Math.sin(RS.yaw) * 0.15;
+    }
+    setTimeout(() => { document.getElementById('navMode').textContent = 'AUTO'; }, 800);
+    return;
+  }
+
+  // ─── Smooth Yaw Interpolation ───
   const targetYaw = Math.atan2(dz, dx);
   let dyaw = targetYaw - RS.yaw;
   while (dyaw >  Math.PI) dyaw -= Math.PI*2;
   while (dyaw < -Math.PI) dyaw += Math.PI*2;
-  RS.yaw += dyaw * Math.min(dt*3, 0.12);
+  RS.yaw += dyaw * Math.min(dt*4, 0.15);
 
+  // ─── Movement with dynamic speed near obstacles ───
   const spd = speed * dt * Math.min(dist, 1);
-  // Collision avoidance
-  if (SENSORS.front > 1.5) {
-    RS.x += Math.cos(RS.yaw) * spd;
-    RS.z += Math.sin(RS.yaw) * spd;
-  } else {
-    RS.yaw += 0.08;
-    addLog('[AVOID] Obstacle detected, steering','warn');
-  }
-
-  // Hover bob removed for 2 wheel
+  let moveFactor = 1.0;
+  if (SENSORS.front < 1.0) moveFactor = 0.25;
+  else if (SENSORS.front < 2.0) moveFactor = 0.5;
+  else if (SENSORS.front < 3.0) moveFactor = 0.75;
+  RS.x += Math.cos(RS.yaw) * spd * moveFactor;
+  RS.z += Math.sin(RS.yaw) * spd * moveFactor;
   RS.y = 0;
 
-  // Progress
+  // ─── Progress ───
   const pct = Math.round(currentWP / pathWaypoints.length * 100);
   document.getElementById('pathProg').textContent = `${currentWP}/${pathWaypoints.length}`;
   document.getElementById('missionProg').style.width = pct+'%';
@@ -645,16 +761,7 @@ function navigateAuto(dt) {
   document.getElementById('wpLabel').textContent = `WP ${currentWP}`;
 }
 
-/* ═══════════════════ MANUAL CONTROL ════════════════════ */
-function processKeys(dt) {
-  const s = speed * dt * 1.5;
-  if (KEYS['KeyW']||KEYS['ArrowUp'])    { RS.x+=Math.cos(RS.yaw)*s; RS.z+=Math.sin(RS.yaw)*s; }
-  if (KEYS['KeyS']||KEYS['ArrowDown'])  { RS.x-=Math.cos(RS.yaw)*s; RS.z-=Math.sin(RS.yaw)*s; }
-  if (KEYS['KeyA']||KEYS['ArrowLeft'])  RS.yaw -= s*1.5;
-  if (KEYS['KeyD']||KEYS['ArrowRight']) RS.yaw += s*1.5;
-  if (KEYS['Space']) { RS.x+=Math.cos(RS.yaw)*s*3; RS.z+=Math.sin(RS.yaw)*s*3; }
-  RS.y = 0;
-}
+/* Manual control removed — fully autonomous navigation */
 
 /* ═══════════════════ CAMERA LOGIC ══════════════════════ */
 function updateCamera(dt) {
@@ -694,7 +801,6 @@ function loop() {
 
     if (!isPaused) {
       if (isRunning) navigateAuto(dt);
-      processKeys(dt);
 
       // Clamp to valid space
       RS.x = Math.max(-MAP_W/2+1, Math.min(MAP_W/2-1, RS.x));
@@ -759,10 +865,16 @@ function updateTelemetry() {
   document.getElementById('posX').textContent = RS.x.toFixed(2);
   document.getElementById('posY').textContent = RS.z.toFixed(2);
   document.getElementById('heading').textContent = ((RS.yaw*180/Math.PI+360)%360).toFixed(1);
-  const vel = Math.sqrt(RS.vx**2+RS.vz**2);
   document.getElementById('velocity').textContent = (speed*0.8).toFixed(2);
   document.getElementById('angVel').textContent    = (RS.vyaw*180/Math.PI).toFixed(2);
   document.getElementById('pointCount').textContent = pcCount;
+  // Replan counters
+  const rcEl = document.getElementById('replanCount');
+  const rsEl = document.getElementById('replanState');
+  if (rcEl) rcEl.textContent = replanCount;
+  if (rsEl) rsEl.textContent = replanCount;
+  if (rcEl && replanCooldown > 0) { rcEl.style.color = 'var(--accent-orange)'; rcEl.style.textShadow = '0 0 8px rgba(255,107,53,0.8)'; }
+  else if (rcEl) { rcEl.style.color = ''; rcEl.style.textShadow = ''; }
   // Battery drain
   const bat=Math.max(0,98-simTime*0.02).toFixed(0)+'%';
   const be=document.getElementById('battery');
@@ -772,22 +884,92 @@ function updateTelemetry() {
 /* ═══════════════════ UI BINDINGS ════════════════════════ */
 function bindUI() {
   // Sim controls
-  document.getElementById('btnStart').onclick=()=>{isRunning=true;isPaused=false;document.getElementById('statusText').textContent='NAVIGATING';document.getElementById('navMode').textContent='AUTO';addLog('[SIM] Autonomous navigation started','ok');toast('Navigation started');};
+  document.getElementById('btnStart').onclick=()=>{
+    const success = planMission();
+    if (!success) return; // aborted due to invalid coords
+    isRunning=true;isPaused=false;
+    document.getElementById('statusText').textContent='NAVIGATING';
+    document.getElementById('navMode').textContent='AUTO';
+    addLog('[SIM] Autonomous navigation started','ok');
+    toast('Navigation started');
+  };
   document.getElementById('btnPause').onclick=()=>{isPaused=!isPaused;document.getElementById('statusText').textContent=isPaused?'PAUSED':'NAVIGATING';};
-  document.getElementById('btnStop').onclick=()=>{isRunning=false;isPaused=false;currentWP=0;document.getElementById('statusText').textContent='STOPPED';};
-  document.getElementById('btnRestart').onclick=()=>{RS.x=0;RS.y=1.8;RS.z=0;RS.yaw=0;trailPoints=[];pcCount=0;pointCloudGeom.setDrawRange(0,0);currentWP=0;isRunning=false;isPaused=false;planMission();toast('Simulation restarted');};
+  document.getElementById('btnStop').onclick=()=>{isRunning=false;isPaused=false;document.getElementById('statusText').textContent='STOPPED';};
+  document.getElementById('btnRestart').onclick=()=>{document.getElementById('inpStart').value='';document.getElementById('inpEnd').value='';RS.x=0;RS.y=0;RS.z=0;RS.yaw=0;trailPoints=[];pcCount=0;pointCloudGeom.setDrawRange(0,0);currentWP=0;isRunning=false;isPaused=false;replanCooldown=0;replanCount=0;planMission();toast('Simulation restarted');};
+  
+  // Drop Obstacle Button
+  const btnDrop = document.getElementById('btnDropObstacle');
+  if (btnDrop) btnDrop.onclick = () => {
+    const dist = 3.0;
+    const ox = RS.x + Math.cos(RS.yaw) * dist;
+    const oz = RS.z + Math.sin(RS.yaw) * dist;
+    const c = Math.floor(ox + MAP_W/2);
+    const r = Math.floor(oz + MAP_D/2);
+    if (r >= 0 && r < MAP_D && c >= 0 && c < MAP_W) {
+      if (occupancy[r][c] === 1) return; // already an obstacle there
+      occupancy[r][c] = 1;
+      for (let dr = -SAFETY_BUFFER; dr <= SAFETY_BUFFER; dr++) {
+        for (let dc = -SAFETY_BUFFER; dc <= SAFETY_BUFFER; dc++) {
+          const nr = r + dr, nc = c + dc;
+          if (nr >= 0 && nr < MAP_D && nc >= 0 && nc < MAP_W) inflatedOccupancy[nr][nc] = 1;
+        }
+      }
+      const geo = new THREE.BoxGeometry(CELL, 4, CELL);
+      const wallMat = new THREE.MeshStandardMaterial({ color:0xff6b35, roughness:0.9 });
+      const mesh = new THREE.Mesh(geo, wallMat);
+      mesh.position.set(c - MAP_W/2 + 0.5, 2, r - MAP_D/2 + 0.5);
+      mesh.castShadow = true; mesh.receiveShadow = true;
+      scene.add(mesh);
+      addLog(`[SIM] Obstacle dropped at (${c}, ${r})`, 'warn');
+    }
+  };
+  
+  // Real-time map update if waypoints are typed
+  const updateMapCb = () => { if(!isRunning) { planMission(); } };
+  document.getElementById('inpStart').addEventListener('change', updateMapCb);
+  document.getElementById('inpEnd').addEventListener('change', updateMapCb);
+
+  // Minimap Click-to-Pick
+  if (mmCanvas) {
+    mmCanvas.style.cursor = 'crosshair';
+    mmCanvas.onclick = (e) => {
+      const rect = mmCanvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const col = Math.floor((x / mmCanvas.width) * MAP_W);
+      const row = Math.floor((y / mmCanvas.height) * MAP_D);
+      
+      if (e.ctrlKey) {
+        document.getElementById('inpStart').value = `${col},${row}`;
+        toast(`Start set to ${col},${row}`);
+      } else {
+        document.getElementById('inpEnd').value = `${col},${row}`;
+        toast(`Goal set to ${col},${row}`);
+      }
+      
+      if (!isRunning) planMission();
+    };
+    
+    mmCanvas.onmousemove = (e) => {
+      const rect = mmCanvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const col = Math.floor((x / mmCanvas.width) * MAP_W);
+      const row = Math.floor((y / mmCanvas.height) * MAP_D);
+      const scaleEl = document.getElementById('mmScale');
+      if (scaleEl) scaleEl.textContent = `COORD: ${col},${row}`;
+    };
+    mmCanvas.onmouseleave = () => {
+      const scaleEl = document.getElementById('mmScale');
+      if (scaleEl) scaleEl.textContent = `1:1`;
+    };
+  }
 
   // Speed
   const ss=document.getElementById('speedSlider');
   if(ss) ss.oninput=()=>{speed=parseFloat(ss.value);document.getElementById('speedVal').textContent=speed.toFixed(1)+'×';};
 
-  // Dir buttons
-  const held=(id,fn)=>{let iv;const el=document.getElementById(id);if(!el)return;el.onmousedown=()=>{fn();iv=setInterval(fn,50);el.classList.add('active');};el.onmouseup=el.onmouseleave=()=>{clearInterval(iv);el.classList.remove('active');};};
-  held('btnUp',  ()=>{RS.x+=Math.cos(RS.yaw)*0.12*speed;RS.z+=Math.sin(RS.yaw)*0.12*speed;});
-  held('btnBack',()=>{RS.x-=Math.cos(RS.yaw)*0.08*speed;RS.z-=Math.sin(RS.yaw)*0.08*speed;});
-  held('btnRotL',()=>{RS.yaw-=0.06;});
-  held('btnRotR',()=>{RS.yaw+=0.06;});
-  held('btnDash',()=>{RS.x+=Math.cos(RS.yaw)*0.25*speed;RS.z+=Math.sin(RS.yaw)*0.25*speed;});
+  // Manual direction buttons removed — fully autonomous
 
   // Camera
   const camBtns = {'camOrbit':'orbit','camPOV':'pov','camTop':'top','camCinema':'cinema'};

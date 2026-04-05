@@ -80,16 +80,9 @@
           <button class="ctrl-btn" id="btnPause" style="flex: 1;">⏸ PAUSE</button>
           <button class="ctrl-btn danger" id="btnStop" style="flex: 1;">⏹ STOP</button>
         </div>
+        <button class="ctrl-btn" id="btnDropObstacle" style="margin-top: 6px; border-color: var(--accent-orange); color: var(--accent-orange); background: rgba(255,107,53,0.1);">⚠️ DROP OBSTACLE</button>
       </div>
-      <div class="panel-section">
-        <div class="section-header">🎮 MANUAL CONTROL</div>
-        <div class="control-grid">
-          <div class="ctrl-row"><button class="dir-btn" id="btnUp" title="Accelerate">▲</button></div>
-          <div class="ctrl-row"><button class="dir-btn" id="btnRotL" title="Turn Left">◀</button><button class="dir-btn" id="btnBack" title="Reverse">▼</button><button class="dir-btn" id="btnRotR" title="Turn Right">▶</button></div>
-          <div class="ctrl-row"><button class="dir-btn dash-btn" id="btnDash">BOOST</button></div>
-        </div>
-        <div class="key-hint">Arrow Keys · Space</div>
-      </div>
+      <!-- Manual control removed: robot navigates fully autonomously -->
       <div class="panel-section">
         <div class="section-header">📡 SENSOR LAYERS</div>
         <div class="toggle-list">
@@ -127,6 +120,7 @@
           <div class="telem-box"><label>HEADING</label><span id="heading">0.0</span></div>
           <div class="telem-box"><label>SPEED</label><span id="velocity">0.00</span></div>
           <div class="telem-box"><label>ANG VEL</label><span id="angVel">0.00</span></div>
+          <div class="telem-box replan-box"><label>REPLANS</label><span id="replanCount">0</span></div>
         </div>
       </div>
       <div class="panel-section">
@@ -137,6 +131,7 @@
           <div class="state-row"><span>Collision Risk</span><span class="state-val" id="collRisk">LOW</span></div>
           <div class="state-row"><span>Map Coverage</span><span class="state-val" id="mapCov">0%</span></div>
           <div class="state-row"><span>Progress</span><span class="state-val" id="pathProg">0/0</span></div>
+          <div class="state-row"><span>Re-plans</span><span class="state-val orange" id="replanState">0</span></div>
           <div class="state-row"><span>Battery</span><span class="state-val green" id="battery">98%</span></div>
         </div>
       </div>

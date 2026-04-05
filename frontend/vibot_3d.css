@@ -200,12 +200,7 @@ body { font-family: var(--font-main); color: var(--text-primary); }
 .ctrl-btn.danger { border-color: rgba(255,51,102,0.6); color: #ff88a0; background: rgba(255,51,102,0.1); }
 .ctrl-btn.danger:hover { background: rgba(255,51,102,0.25); color: #fff; box-shadow: 0 0 15px rgba(255,51,102,0.4); }
 
-.control-grid { display: flex; flex-direction: column; gap: 6px; }
-.ctrl-row     { display: flex; gap: 6px; justify-content: center; }
-.dir-btn { flex: 1; height: 42px; min-width: 48px; background: rgba(0,0,0,0.4); border: 1px solid var(--border); border-radius: 6px; color: var(--text-muted); font-size: 1rem; font-family: var(--font-mono); cursor: pointer; transition: all 0.1s; display: flex; align-items: center; justify-content: center; }
-.dir-btn:hover, .dir-btn:active, .dir-btn.active { background: rgba(0,245,255,0.2); border-color: var(--accent-cyan); color: var(--accent-cyan); box-shadow: var(--glow-cyan); transform: scale(1.05); }
-.dash-btn { flex: 1.8; font-size: 0.75rem; letter-spacing: 1px; font-weight: 700; }
-.key-hint { text-align: center; font-size: 0.65rem; font-family: var(--font-mono); color: var(--text-muted); letter-spacing: 1.5px; margin-top: 4px; }
+/* Manual control styles removed — robot is fully autonomous */
 
 
 .toggle-list { display: flex; flex-direction: column; gap: 8px; }
@@ -234,6 +229,7 @@ body { font-family: var(--font-main); color: var(--text-primary); }
 .telem-box label { font-size: 0.6rem; letter-spacing: 1px; color: var(--text-label); font-family: var(--font-mono); text-transform: uppercase; }
 .telem-box span  { font-size: 1.1rem; font-weight: 700; color: var(--accent-cyan); font-family: var(--font-mono); text-shadow: 0 0 5px rgba(0,245,255,0.3); }
 .telem-box small { font-size: 0.6rem; color: var(--text-muted); opacity: 0.7; margin-left: 2px; }
+.replan-box span { color: var(--accent-orange); text-shadow: 0 0 5px rgba(255,107,53,0.3); transition: all 0.3s; }
 
 
 .state-list { display: flex; flex-direction: column; gap: 6px; }
