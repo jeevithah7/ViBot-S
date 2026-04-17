@@ -59,22 +59,21 @@ ViBot-S/
 pip install opencv-python numpy matplotlib scipy
 ```
 
-### 2. Run the Real-Time Web Dashboard
+### 2. Run the Real-Time 3D Simulation Web Dashboard
 
-The new v2.0 update includes a full Flask-based web dashboard that runs a live simulation.
+To view the interactive 3D simulation of the robot, you need to serve the frontend files locally.
 
-**On Windows:**
-Simply double-click `run_demo.bat` or run it from the terminal:
+Navigate to the `frontend` directory and start a local HTTP server:
+
 ```bash
-.\run_demo.bat
+cd frontend
+npx http-server -p 8000
 ```
-This will automatically start the server and open the dashboard in your default browser.
 
-**On Mac/Linux (or manually):**
-Activate your virtual environment and run the launcher:
-```bash
-python demo/demo_mode.py
-```
+Then, open your web browser and navigate to:
+`http://localhost:8000/vibot_3d_simulation.html`
+
+This will display the working project output with the real-time 3D simulation.
 
 ### 3. (Optional) Run the Original Offline Simulation
 
